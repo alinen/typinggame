@@ -71,62 +71,44 @@ char* findword(char* buff, char delim, int& num_spaces)
    return &(ptr[start]);
 }
 
-const int TIME_OFFSET = 5;
-int num_explosion_fade = 4;
-int num_trail = 4;
-Vec2 dim_explosion(3,5);
-Vec2 dim_bee_sprite(4,8); //(6,12);
-Vec2 dim_sky(11,52);
-const char* trail = ".*oO";
-const char* explosion1[] = {
+//------------------------
+//   graphics
+//------------------------
+const int gNumTrail = 4;
+const char* gTrail = ".*oO";
+
+const int gNumExplosionFade = 4;
+const Vec2 gDimExplosion(3,5);
+const char* gExplosion1[] = {
 " % % ",
 "% % %",
 " % % "};
-const char* explosion2[] = {
+const char* gExplosion2[] = {
 " * * ",
 "* * *",
 " * * "};
-const char* explosion3[] = {
+const char* gExplosion3[] = {
 " . . ",
 ". . .",
 " . . "};
-const char* explosion4[] = {
+const char* gExplosion4[] = {
 "     ",
 "     ",
 "     "};
 
-const char* bee_sprite1[] = {
-"     __     ",
-"   _(__)_   ",
-"  /-------@/",
-"<(--------|D",
-"  \\-------@\\",
-"    (__)    "};
-
-const char* bee_sprite[] = {
+const Vec2 gDimBeeSprite(4,8); 
+const char* gBeeSprite[] = {
 "   __   ",
 "  (__\\_ ",
 "-{{_{|8)",
 "  (__/  "};
 
-const char* sky1[] = {
-"....................................................",
-"..........(`      )...................._............",
-".........(  _^ ^_  )................:(`  )`.........",
-"........_(   )u(   '`...........:(   .    ).........",
-".....=(`(      .     )......--..`.  (    ) )........",
-"...((    (..__.:'-'.......+(   )...` _`  ) )........",
-"...`(       ) ).........(   .  ).....(   )  ........",
-".....` __.:'   ).......(   (   )).....`-'.-(`    )..",
-"............--'.........`- __.'.........:(   ^ ^  ))",
-".......................................`(    )V  )).",
-"...................................................."};      
-
-const char* sky[] = {
+const Vec2 gDimSky(11,52);
+const char* gSky[] = {
 "           __----_                                  ",
 "          (`......)                    _            ",
 "         (. _^ ^_ .)                :(`..)`         ",
-".       _(...)u( ..'`           :(........)         ",
+"        _(...)u( ..'`           :(........)         ",
 "     =(`(..... ......)      --  `.  (. ..).)        ",
 "   ((....(..__.:'-'       +(...)   ` _`..).)        ",
 "   `(.......).)         (.. ...)     (...)          ",
@@ -135,10 +117,12 @@ const char* sky[] = {
 "                                       `(....)V .)) ",
 "                                         ...        "};      
 
+const int gFlair[15] = {0,-1,-1,-1,-1,-1,-1,0,1,1,1,1,1,0,0};
+const int gNumFlair = 15; 
 
-const int flair[15] = {0,-1,-1,-1,-1,-1,-1,0,1,1,1,1,1,0,0};
-const int flairSize = 15; 
-
+//---------------------------------
+// game
+//---------------------------------
 class TypingGame
 {
 public:
@@ -171,20 +155,21 @@ public:
       start_color();
 	   init_pair(WS_INPROGRESS, COLOR_MAGENTA, COLOR_BLACK);
 	   init_pair(WS_ERROR, COLOR_RED, COLOR_BLACK);
-      init_pair(3, COLOR_RED, COLOR_BLACK);
-      init_pair(4, COLOR_MAGENTA, COLOR_BLACK);
-      init_pair(5, COLOR_YELLOW, COLOR_BLACK);
-      init_pair(6, COLOR_GREEN, COLOR_BLACK);
-      init_pair(7, COLOR_BLUE, COLOR_BLACK);
-      init_pair(8, COLOR_CYAN, COLOR_BLACK);
+      init_pair(RB_1, COLOR_RED, COLOR_BLACK);
+      init_pair(RB_2, COLOR_MAGENTA, COLOR_BLACK);
+      init_pair(RB_3, COLOR_YELLOW, COLOR_BLACK);
+      init_pair(RB_4, COLOR_GREEN, COLOR_BLACK);
+      init_pair(RB_5, COLOR_BLUE, COLOR_BLACK);
+      init_pair(RB_6, COLOR_CYAN, COLOR_BLACK);
 
-      ycursor_offset = 0;
-      current = 0;
-      dt = 0;
-      elapsedTime = 0;
-      startcol = ((int) COLS*0.5) - 19; // hard-coded for injust.txt
-      startrow = LINES;
-      startscreen = 3;
+      mElapsedTime = 0;
+      // NOTE: Need to init text BEFORE loading text!!
+      mTxt.init(this, Vec2(-3,0), Vec2(LINES, ((int) COLS*0.5) - 19)); // hard-coded for injust.txt
+      mBee.init(Vec2(0,10), Vec2(LINES*0.5, -gDimBeeSprite.y), RB_3);
+      mBee.start();
+      mExplosions.init();
+      move(0, 0); addstr("Press ESC to exit.\n");
+      drawSky(gDimSky, gSky);      
 
       attron(COLOR_PAIR(3));
       mvaddstr(LINES-1,0,"----------------"); 
@@ -207,15 +192,6 @@ public:
       attroff(COLOR_PAIR(7));
    }
 
-   void clear()
-   {
-      pos.clear();
-      state.clear();
-      vel.clear();
-      dim.clear();
-      words.clear();
-   }
-
    bool loadFile(const string& filename)
    {
       ifstream textfile(filename.c_str());
@@ -226,100 +202,17 @@ public:
          while (getline(textfile, line))
          {
             addLine(line, time);
-            time += 2.0 + rand() % 5; // next text appears between 3 and 8 seconds later
+            time += MIN_TIME_OFFSET + rand() % VAR_TIME_OFFSET; // next text appears between 3 and 8 seconds later
          }
          textfile.close();
-         //for (int i = 0; i < words.size(); i++)
-         //{
-         //   cout << words[i] << " " << pos[i] << " " << spawn[i] << " " << dim[i] << endl;
-         //}
          return true;
       }
       return false;
    }
 
-   void addLine(const string& line, float spawn_time)
+   void addLine(const string& line, float spawnTime)
    {
-      char buffer[2056];
-      strncpy(buffer, line.c_str(), 2056);
-
-      int x = startrow;
-      int num_spaces = 0;
-      int y = startcol + rand() % 10 - 5;
-      char* token = findword(buffer, ' ', num_spaces);
-      while (token)
-      {
-         string word = token;
-
-         words.push_back(word);
-         dim.push_back(Vec2(1,word.size()));
-         pos.push_back(Vec2(x, y));
-         vel.push_back(Vec2(-3,0));
-         spawn.push_back(spawn_time);
-         state.push_back(WS_HIDDEN);
-         tmpx.push_back(x);
-         tmpy.push_back(y);
-
-         y += word.size()+num_spaces;
-         token = findword(NULL, ' ', num_spaces);
-      }
-   }
-
-   void start()
-   {
-      move(0, 0); addstr("Press ESC to exit.\n");
-
-      bee.startpos = Vec2(LINES*0.5, -dim_bee_sprite.y);
-      bee.vel = Vec2(0,0);
-      init_bee();
-
-      explosion_animation.push_back(explosion1);
-      explosion_animation.push_back(explosion2);
-      explosion_animation.push_back(explosion3);
-      explosion_animation.push_back(explosion4);
-
-      drawSky(dim_sky, sky);
-   }
-
-   void eraseWord(int word_id)
-   {
-      // erase old word position and update pos
-      for (int i = 0; i < words[word_id].size(); i++)
-      {
-          mvaddch(pos[word_id].x, pos[word_id].y+i, ' '); 
-      }      
-   }
-
-   void drawInProgress(int word_id)
-   {
-      attron(COLOR_PAIR(WS_INPROGRESS));
-      attron(A_BOLD);
-      for (int i = 0; i <= ycursor_offset && i < words[word_id].size(); i++) 
-      {
-         mvaddch(pos[word_id].x, pos[word_id].y+i, words[word_id][i]); 
-      }
-      attroff(A_BOLD);
-      attroff(COLOR_PAIR(WS_INPROGRESS));	
-      for (int i = ycursor_offset+1; i < words[word_id].size(); i++) 
-      {
-         mvaddch(pos[word_id].x, pos[word_id].y+i, words[word_id][i]); 
-      }            
-   }
-
-   void drawError(int word_id)
-   {
-      attron(COLOR_PAIR(WS_ERROR));	
-      attron(A_BOLD);
-      move(pos[word_id].x, pos[word_id].y); 
-      addstr(words[word_id].c_str());
-      attroff(A_BOLD);
-      attroff(COLOR_PAIR(WS_ERROR));         
-   }
-
-   void drawNormal(int word_id)
-   {
-       move(pos[word_id].x, pos[word_id].y); 
-       addstr(words[word_id].c_str());      
+      mTxt.addLine(line, spawnTime);
    }
 
    void drawSky(const Vec2& dim, const char* sprite[])
@@ -333,7 +226,7 @@ public:
             for (int j = 0; j < dim.y && j < COLS; j++)
             {
                //if (line[j] == '.') attron(COLOR_PAIR(8));
-               mvaddch(i+startscreen, ypos+j, line[j]);
+               mvaddch(i+SCREEN_START, ypos+j, line[j]);
                //if (line[j] == '.') attroff(COLOR_PAIR(8));
             }
          }
@@ -341,261 +234,414 @@ public:
       }
    }
 
-   void drawFail(int word_id)
+   void createExplosion(const Vec2& p, int c)
    {
-      attron(COLOR_PAIR(WS_ERROR));	
-      for (int i = 0; i < words[word_id].size(); i++)
-      {
-         mvaddch(pos[word_id].x, pos[word_id].y+i, words[word_id][i]);
-      }
-      attroff(COLOR_PAIR(WS_ERROR));
+      mExplosions.create(p, c);
    }
 
-   bool intersection(int word_id)
+   void updateAndDraw(float dt, char c)
    {
-      for (int i = 0; i < words[word_id].size(); i++)
+      if (mTxt.finished())
       {
-         int x = pos[word_id].x;
-         int y = pos[word_id].y+i;
-         if (x >= startscreen+1 && x < dim_sky.x+startscreen+1)
-         {
-            int c = mvgetch(x, y);
-            if (c != ' ')
-            {
-               create_explosion(Vec2(x,y),WS_ERROR);
-               addch('$');
-               return true;
-            }
-         }
-      }
-      return false;
-   }
-
-   void create_explosion(const Vec2& p, int c)
-   {
-      explosions.pos.push_back(p-dim_explosion*0.5);
-      explosions.stage.push_back(0);
-      explosions.color.push_back(c);
-   }
-
-   void draw_explosions()
-   {
-      for (int e = 0; e < explosions.pos.size(); e++)
-      {
-         Vec2 p = explosions.pos[e];
-         int stage = explosions.stage[e];
-         int c = explosions.color[e];
-         attron(COLOR_PAIR(c));	
-         for (int i = 0; i < dim_explosion.x; i++)
-         {
-            int x = p.x+i;
-            if (x > LINES) continue;
-            for (int j = 0; j < dim_explosion.y; j++)
-            {
-               int y = p.y+j;
-               if (y > COLS) continue;
-               mvaddch(x, y, explosion_animation[stage][i][j]);
-            }
-         }
-         attroff(COLOR_PAIR(c));	
-         explosions.stage[e]++;
-      }
-
-      // remove finished explosions
-      while (explosions.stage[0] >= explosion_animation.size())
-      {
-         explosions.pos.pop_front();
-         explosions.stage.pop_front();
-         explosions.color.pop_front();
-      }
-   }
-
-   void init_bee()
-   {
-      bee.flair_offset = rand() % flairSize;
-      bee.vel = Vec2(0,1);
-      bee.pos = bee.startpos;
-   }
-
-   void draw_bee(bool erase)
-   {
-      attron(COLOR_PAIR(5));
-      for (int i = 0; i < dim_bee_sprite.x; i++)
-      {
-         int x = bee.pos.x+i;
-         if (x < 0 || x > LINES) continue;
-         for (int j = 0; j < dim_bee_sprite.y; j++)
-         {
-            int y = bee.pos.y+j;
-            if (y < 0 || y > COLS) continue;
-            if (erase) mvaddch(x, y, ' ');
-            else
-            {
-               mvaddch(x, y, bee_sprite[i][j]);
-            }
-         }
-      }
-      attroff(COLOR_PAIR(5));
-   }
-
-   void updateAndDraw(float _dt, char c)
-   {
-      if (current >= words.size()) // all done!
-      {
-         move(1,0); addstr("You win!");
+         move(1,0); addstr("Finished!");
          return;
       }
 
-      static float gXvel = -2.0;
-      elapsedTime += _dt;
-      dt += _dt;
-      float tmp = gXvel * dt;
-      int numUnits = (int) tmp;
-      if (fabs(numUnits) > 0)
-      {
-         dt = 0; 
-         for (int k = current; k < words.size(); k++)
-         {
-            if (state[k] == WS_HIDDEN && elapsedTime > spawn[k])
-            {
-               state[k] = WS_INIT;
-               if (k-1 >= 0 && spawn[k] - spawn[k-1] > 3 && bee.pos.y >= COLS)
-               {
-                  init_bee();
-               }
-            }
+      mElapsedTime += dt;
 
-            if (state[k] != WS_COMPLETE && state[k] != WS_FAIL && state[k] != WS_HIDDEN)
-            {
-               // update position
-               eraseWord(k);
-               tmpx[k] = tmpx[k] + numUnits;
-               tmpy[k] = tmpy[k];
-               pos[k].x = pos[k].x + numUnits; 
+      mTxt.update(dt, mElapsedTime);
+      mTxt.processUserInput(c);
 
-               if (pos[k].x < startscreen || intersection(k)) // beyond bounds
-               {
-                  state[k] = WS_FAIL;
-               }
-               pos[k].x = min(LINES-1, pos[k].x);
-            }
-         }
+      mBee.updateAndDraw(dt);
+      mExplosions.updateAndDraw(dt);
+      mTxt.draw();
 
-      }
-
-      static float beev = 12.0;
-      static float beedt = 0;
-      beedt += _dt;
-      tmp = beev * beedt;
-      numUnits = (int) tmp;
-      if (fabs(numUnits) > 0)
-      {
-         beedt = 0;
-         draw_bee(true);
-         bee.pos.y = bee.pos.y + numUnits;
-         bee.flair_offset = (bee.flair_offset + numUnits) % flairSize;
-         bee.pos.x = bee.startpos.x + flair[bee.flair_offset];
-         draw_bee(false);
-      }
-
-      if (words[current][ycursor_offset] == c) // correct 
-      {
-         state[current] = WS_INPROGRESS;
-         ycursor_offset++;
-      }
-      else if (c != -1 && c != ' ') // mistake
-      {
-         state[current] = WS_ERROR;
-         ycursor_offset = 0; //restart word
-      }
-
-      // update based on user update
-      for (int k = current; k < words.size(); k++)
-      {
-         assert (state[k] != WS_COMPLETE); // completed word, don't draw, shouldn't need this
-
-         if (state[k] == WS_HIDDEN)
-         {
-            continue; // don't draw it yet
-         }
-         else if (state[k] == WS_INIT)
-         {
-            drawNormal(k);
-         }
-         else if (state[k] == WS_ERROR)
-         {
-            drawError(k);  
-         }
-         else if (state[k] == WS_INPROGRESS)
-         {
-            drawInProgress(k);
-         }         
-         else if (state[k] == WS_FAIL)
-         {
-            drawFail(k);
-            if(k == current)
-            {
-               ycursor_offset = words[current].size(); // inc cursor, e.g. complete word automatically
-            }
-         }
-      }
-      
-      if (ycursor_offset >= words[current].size()) //complete
-      {
-         state[current] = WS_COMPLETE;
-         create_explosion(pos[current]+dim[current]*0.5, WS_INPROGRESS);
-         eraseWord(current);
-         ycursor_offset = 0;
-         current++;
-      }
-
-      draw_explosions();
-      move(pos[current].x, pos[current].y + ycursor_offset); 
       wrefresh(stdscr);
    }
 
 private:
-   vector<Vec2> pos;
-   vector<Vec2> vel;
-   vector<Vec2> dim;
-   vector<float> spawn;
-   vector<string> words;
-   vector<float> tmpx;
-   vector<float> tmpy;
+
+   //----------------------------------------------
+   // Scrolling text logic
+   //----------------------------------------------
    enum WordState {WS_INIT, WS_INPROGRESS, WS_ERROR, WS_COMPLETE, WS_FAIL, WS_HIDDEN};
-   vector<WordState> state;
-
-   enum RainbowColors { RB_1 = 3, RB_2, RB_3, RB_4, RB_5, RB_6 };
-
-   struct Explosions
+   class ScrollText
    {
-      deque<Vec2> pos;
-      deque<int> stage;
-      deque<int> color;
-   } explosions;
-   vector<const char**> explosion_animation;
+   public:
+      void init(TypingGame* g, const Vec2& _vel, const Vec2& _startpos)
+      {
+         mGame = g;
+         mYcursorOffset = 0;
+         mCurrent = 0;
+         mDt = 0;
+         mVel = _vel;
+         mStartpos = _startpos; 
+      }
 
+      void addLine(const string& line, float spawnTime)
+      {
+         char buffer[2056];
+         strncpy(buffer, line.c_str(), 2056);
+
+         int x = mStartpos.x;
+         int y = mStartpos.y + rand() % 10 - 5;
+         int num_spaces = 0;
+         char* token = findword(buffer, ' ', num_spaces);
+         while (token)
+         {
+            string word = token;
+
+            mWords.push_back(word);
+            mDim.push_back(Vec2(1,word.size()));
+            mPos.push_back(Vec2(x, y));
+            mSpawn.push_back(spawnTime);
+            mState.push_back(WS_HIDDEN);
+
+            y += word.size()+num_spaces;
+            token = findword(NULL, ' ', num_spaces);
+         }
+      }
+
+      bool finished()
+      {
+         return (mCurrent >= mWords.size()); // all done!
+      }
+
+      int numWords() const
+      {
+         return mWords.size(); 
+      }
+
+      void eraseWord(int word_id)
+      {
+         // erase old word position and update pos
+         for (int i = 0; i < mWords[word_id].size(); i++)
+         {
+            mvaddch(mPos[word_id].x, mPos[word_id].y+i, ' '); 
+         }      
+      }
+
+      void drawInProgress(int word_id)
+      {
+         attron(COLOR_PAIR(WS_INPROGRESS));
+         attron(A_BOLD);
+         for (int i = 0; i <= mYcursorOffset && i < mWords[word_id].size(); i++) 
+         {
+            mvaddch(mPos[word_id].x, mPos[word_id].y+i, mWords[word_id][i]); 
+         }
+         attroff(A_BOLD);
+         attroff(COLOR_PAIR(WS_INPROGRESS));	
+         for (int i = mYcursorOffset+1; i < mWords[word_id].size(); i++) 
+         {
+            mvaddch(mPos[word_id].x, mPos[word_id].y+i, mWords[word_id][i]); 
+         }            
+      }
+   
+      void drawError(int word_id)
+      {
+         attron(COLOR_PAIR(WS_ERROR));	
+         attron(A_BOLD);
+         move(mPos[word_id].x, mPos[word_id].y); 
+         addstr(mWords[word_id].c_str());
+         attroff(A_BOLD);
+         attroff(COLOR_PAIR(WS_ERROR));         
+      }
+
+      void drawNormal(int word_id)
+      {
+         move(mPos[word_id].x, mPos[word_id].y); 
+         addstr(mWords[word_id].c_str());      
+      }
+      
+      void drawFail(int word_id)
+      {
+         attron(COLOR_PAIR(WS_ERROR));	
+         for (int i = 0; i < mWords[word_id].size(); i++)
+         {
+            mvaddch(mPos[word_id].x, mPos[word_id].y+i, mWords[word_id][i]);
+         }
+         attroff(COLOR_PAIR(WS_ERROR));
+      }
+
+      bool intersection(int word_id)
+      {
+         /*
+            int x = mPos[word_id].x;
+            int y = mPos[word_id].y+i;
+            if (x >= game.sky.top() && x <= game.sky.bottom())
+            {
+               return true;
+            }
+         */
+         return false;
+      }
+         
+
+      void update(float _dt, float elapsedTime)
+      {
+         mDt += _dt;
+         Vec2 numUnits = mVel * mDt;
+         if (fabs(numUnits.x) == 0 && fabs(numUnits.y) == 0) return;
+
+         mDt = 0; 
+         for (int k = mCurrent; k < mWords.size(); k++)
+         {
+            if (mState[k] == WS_HIDDEN && elapsedTime > mSpawn[k])
+            {
+               mState[k] = WS_INIT;
+            }
+
+            if (mState[k] != WS_COMPLETE && mState[k] != WS_FAIL && mState[k] != WS_HIDDEN)
+            {
+               // update position
+               eraseWord(k);
+               mPos[k] = mPos[k] + numUnits; 
+               if (mPos[k].x < TypingGame::SCREEN_START || mPos[k].x > LINES-1 || intersection(k)) 
+               {
+                  int x = mPos[k].x+mDim[k].x*0.5;
+                  int y = mPos[k].y;
+                  mGame->createExplosion(Vec2(x,y),WS_ERROR);
+                  mState[k] = WS_FAIL;
+                  if(k == mCurrent)
+                  {
+                     mYcursorOffset = mWords[mCurrent].size(); // inc cursor, e.g. complete word automatically
+                  }  
+               }       
+            }
+         }
+      }
+
+      void processUserInput(char c)
+      {
+         if (mWords[mCurrent][mYcursorOffset] == c) // correct 
+         {
+            mState[mCurrent] = WS_INPROGRESS;
+            mYcursorOffset++;
+         }
+         else if (c != -1 && c != ' ') // mistake
+         {
+            mState[mCurrent] = WS_ERROR;
+            mYcursorOffset = 0; //restart word
+         }
+
+         if (mYcursorOffset >= mWords[mCurrent].size()) //complete
+         {
+            mState[mCurrent] = WS_COMPLETE;
+            mGame->createExplosion(mPos[mCurrent]+mDim[mCurrent]*0.5, WS_INPROGRESS);
+            eraseWord(mCurrent);
+            mYcursorOffset = 0;
+            mCurrent++;
+         }         
+      }
+
+      void draw()
+      {
+         // update based on user update
+         for (int k = mCurrent; k < mWords.size(); k++)
+         {
+            assert (mState[k] != WS_COMPLETE); // completed word, don't draw, shouldn't need this
+
+            if (mState[k] == WS_HIDDEN)
+            {
+               continue; // don't draw it yet
+            }
+            else if (mState[k] == WS_INIT)
+            {
+               drawNormal(k);
+            }
+            else if (mState[k] == WS_ERROR)
+            {
+               drawError(k);  
+            }
+            else if (mState[k] == WS_INPROGRESS)
+            {
+               drawInProgress(k);
+            }         
+            else if (mState[k] == WS_FAIL)
+            {
+               drawFail(k);
+               if (k == mCurrent) // increment cursor
+               {
+                  mYcursorOffset = mWords[mCurrent].size();
+               }
+            }
+         }
+         move(mPos[mCurrent].x, mPos[mCurrent].y + mYcursorOffset); 
+      }
+
+   private:
+      TypingGame* mGame; // owner
+      vector<Vec2> mPos;
+      vector<Vec2> mDim;
+      vector<float> mSpawn;
+      vector<string> mWords;
+      vector<WordState> mState;
+      Vec2 mVel; // all text has same vel -> easier to read
+      float mDt; // time since last update
+      int mCurrent; // current text to type
+      int mYcursorOffset; // y offset of cursor cursorpos;
+      Vec2 mStartpos; // position of first line of text
+   } mTxt;
+
+
+   //----------------------------------------------
+   // Explosions
+   //----------------------------------------------
+   class Explosions
+   {
+   public:
+      void init()
+      {
+         mElapsedTime = 0;
+         mExplosionAnimation.push_back(gExplosion1);
+         mExplosionAnimation.push_back(gExplosion2);
+         mExplosionAnimation.push_back(gExplosion3);
+         mExplosionAnimation.push_back(gExplosion4);
+      }
+
+      void create(const Vec2& p, int c)
+      {
+         mPos.push_back(p-gDimExplosion*0.5);
+         mStage.push_back(0);
+         mColor.push_back(c);
+      }
+
+      void updateAndDraw(float dt)
+      {
+         mElapsedTime += dt;
+         bool inc = false;
+         if (mElapsedTime > RATE)
+         {
+            mElapsedTime = 0;
+            inc = true;
+         }
+
+         for (int e = 0; e < mPos.size(); e++)
+         {
+            Vec2 p = mPos[e];
+            int stage = mStage[e];
+            int c = mColor[e];
+            attron(COLOR_PAIR(c));	
+            for (int i = 0; i < gDimExplosion.x; i++)
+            {
+               int x = p.x+i;
+               if (x > LINES) continue;
+               for (int j = 0; j < gDimExplosion.y; j++)
+               {
+                  int y = p.y+j;
+                  if (y > COLS) continue;
+                  mvaddch(x, y, mExplosionAnimation[stage][i][j]);
+               }
+            }
+            attroff(COLOR_PAIR(c));	
+            if (inc) mStage[e]++;
+         }
+   
+         // remove finished explosions
+         while (mStage[0] >= mExplosionAnimation.size())
+         {
+            mPos.pop_front();
+            mStage.pop_front();
+            mColor.pop_front();
+         }
+      }
+
+   private:
+      deque<Vec2> mPos;
+      deque<int> mStage;
+      deque<int> mColor;
+      float mElapsedTime;
+      vector<const char**> mExplosionAnimation;
+      static const float RATE = 0.1;
+   } mExplosions;
+
+   //----------------------------------------------
+   // Bee
+   //----------------------------------------------
    struct Bee
    {
-      Vec2 startpos;
-      Vec2 pos;
-      Vec2 vel;
-      int flair_offset;
-   } bee;
+   public:
+      void init(const Vec2& v, const Vec2& sp, int c)
+      {
+         mFlairOffset = rand() % gNumFlair;
+         mVel = v;
+         mStartpos = sp;
+         mPos = sp;
+         mColor = c;
+         mPause = true;
+      }
 
-   float dt;
-   float elapsedTime;
-   int current;
-   int ycursor_offset; // y offset of cursor cursorpos;
-   int startrow,startcol;
-   int startscreen;
+      void start()
+      {
+         init(mVel, mStartpos, mColor);
+         mPause = false;
+      }
+
+      void stop()
+      {
+         mPause = true;
+         if (mPause) draw(true);
+      }
+
+      void draw(bool erase)
+      {
+         attron(COLOR_PAIR(mColor));
+         for (int i = 0; i < gDimBeeSprite.x; i++)
+         {
+            int x = mPos.x+i;
+            if (x < 0 || x > LINES) continue;
+            for (int j = 0; j < gDimBeeSprite.y; j++)
+            {
+               int y = mPos.y+j;
+               if (y < 0 || y > COLS) continue;
+               if (erase) mvaddch(x, y, ' ');
+               else
+               {
+                  mvaddch(x, y, gBeeSprite[i][j]);
+               }
+            }
+         }
+         attroff(COLOR_PAIR(mColor));
+      }
+      
+      void updateAndDraw(float _dt)
+      {
+         if (mPause) return;
+
+         mDt += _dt;
+         Vec2 numUnits = mVel * mDt;
+         if (fabs(numUnits.x) == 0 && fabs(numUnits.y) == 0) return;
+         
+         mDt = 0;
+         draw(true);
+         mPos = mPos + numUnits;
+         mFlairOffset = (mFlairOffset+1) % gNumFlair;
+         mPos.x = mStartpos.x + gFlair[mFlairOffset];
+         draw(false);
+      }
+
+   private:
+      Vec2 mStartpos;
+      Vec2 mPos;
+      Vec2 mVel;
+      int mFlairOffset;
+      float mDt; // time since last update
+      int mColor;
+      bool mPause;
+   } mBee;
+
+   enum RainbowColors { RB_1 = 3, RB_2, RB_3, RB_4, RB_5, RB_6 };
+   float mElapsedTime;
+   static const int SCREEN_START = 3;
+   static const int VAR_TIME_OFFSET = 5;
+   static const float MIN_TIME_OFFSET = 2.0;
 };
 
 int main(int argc, char **argv)
 {
    try
    {
-      float elapsedTime = 0;
+      float elapsedTime = 0; // todo: move to game class
       struct timespec then, now;
       clock_gettime(CLOCK_MONOTONIC, &then);
 
@@ -605,7 +651,6 @@ int main(int argc, char **argv)
          game.addLine("The quick brown fox jumps over the lazy dog.", 0);
       }      
 
-      game.start();
       while (true)
       {
          char c = getch();
