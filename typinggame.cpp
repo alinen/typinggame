@@ -166,8 +166,8 @@ public:
       mElapsedTime = 0;
       // NOTE: Need to init text BEFORE loading text!!
       mTxt.init(this, Vec2(-3,0), Vec2(LINES, ((int) COLS*0.5) - 19)); // hard-coded for injust.txt
-      mBee.init(Vec2(0,10), Vec2(LINES*0.5, -gDimBeeSprite.y), RB_3);
-      mBee.start();
+      mBee.init(Vec2(0,10), Vec2(gDimSky.x + SCREEN_START + 2, -gDimBeeSprite.y), RB_3);
+      mBeeSpawn = 0;
       mExplosions.init();
       move(0, 0); addstr("Press ESC to exit.\n");
       drawSky(gDimSky, gSky);      
@@ -258,10 +258,30 @@ public:
       mExplosions.updateAndDraw(dt);
       mTxt.draw();
 
+      if (mBee.finished() && mBee.inMotion())
+      {
+         mBee.stop();
+         mBeeSpawn = mElapsedTime + MIN_TIME_OFFSET + rand() % VAR_TIME_OFFSET;
+      }
+
+      if (mElapsedTime > mBeeSpawn && !mBee.inMotion())
+      {
+         mBee.start();
+      }
+
       wrefresh(stdscr);
    }
 
 private:
+
+
+   enum RainbowColors { RB_1 = 3, RB_2, RB_3, RB_4, RB_5, RB_6 };
+   int mScore;
+   float mElapsedTime;
+   float mBeeSpawn;
+   static const int SCREEN_START = 3;
+   static const int VAR_TIME_OFFSET = 5;
+   static const float MIN_TIME_OFFSET = 2.0;   
 
    //----------------------------------------------
    // Scrolling text logic
@@ -393,6 +413,7 @@ private:
              advance = mSpawn[mCurrent] - elapsedTime;
          }         
 
+         int maxRow = -1;
          for (int k = mCurrent; k < mWords.size(); k++)
          {
             if (k != mCurrent)
@@ -408,18 +429,30 @@ private:
             if (mState[k] != WS_COMPLETE && mState[k] != WS_FAIL && mState[k] != WS_HIDDEN)
             {
                // update position
+               Vec2 newpos = mPos[k] + numUnits; 
+
+               // special case: don't move ahead of the bee
+               // starting with mCurrent, have all text pile behind the bee row
+               // 
+               if (k == mCurrent && mGame->mBee.inMotion() && newpos.x <= mGame->mBee.trajectoryHeight())
+               {
+                  maxRow = mPos[k].x;
+                  newpos.x = mPos[k].x;
+               }
+               else if (k != mCurrent && maxRow > 0 && newpos.x <= maxRow)
+               {
+                  maxRow = mPos[k].x;
+                  newpos.x = mPos[k].x;
+               }
+
                eraseWord(k);
-               mPos[k] = mPos[k] + numUnits; 
+               mPos[k] = newpos;
                if (mPos[k].x < TypingGame::SCREEN_START || mPos[k].x > LINES-1 || intersection(k)) 
                {
                   int x = mPos[k].x+mDim[k].x*0.5;
                   int y = mPos[k].y;
                   mGame->createExplosion(Vec2(x,y),WS_ERROR);
-                  mState[k] = WS_FAIL;
-                  if(k == mCurrent)
-                  {
-                     mYcursorOffset = mWords[mCurrent].size(); // inc cursor, e.g. complete word automatically
-                  }  
+                  mState[k] = WS_FAIL; 
                }       
             }
          }
@@ -605,6 +638,16 @@ private:
          if (mPause) draw(true);
       }
 
+      bool inMotion()
+      {
+         return !mPause;
+      }
+
+      bool finished()
+      {
+         return ((mPos.x < -gDimBeeSprite.x || mPos.x > LINES-1) || (mPos.y < -gDimBeeSprite.y || mPos.y > COLS-1));
+      }
+
       void draw(bool erase)
       {
          attron(COLOR_PAIR(mColor));
@@ -642,6 +685,11 @@ private:
          draw(false);
       }
 
+      int trajectoryHeight() const
+      {
+         return mStartpos.x+2+gDimBeeSprite.x;
+      }
+
    private:
       Vec2 mStartpos;
       Vec2 mPos;
@@ -652,12 +700,6 @@ private:
       bool mPause;
    } mBee;
 
-   enum RainbowColors { RB_1 = 3, RB_2, RB_3, RB_4, RB_5, RB_6 };
-   int mScore;
-   float mElapsedTime;
-   static const int SCREEN_START = 3;
-   static const int VAR_TIME_OFFSET = 5;
-   static const float MIN_TIME_OFFSET = 2.0;
 };
 
 int main(int argc, char **argv)
