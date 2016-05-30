@@ -162,6 +162,7 @@ public:
       init_pair(RB_5, COLOR_BLUE, COLOR_BLACK);
       init_pair(RB_6, COLOR_CYAN, COLOR_BLACK);
 
+      mScore = 0;
       mElapsedTime = 0;
       // NOTE: Need to init text BEFORE loading text!!
       mTxt.init(this, Vec2(-3,0), Vec2(LINES, ((int) COLS*0.5) - 19)); // hard-coded for injust.txt
@@ -243,10 +244,11 @@ public:
    {
       if (mTxt.finished())
       {
-         move(1,0); addstr("Finished!");
+         move(LINES*0.5,COLS*0.5); printw("Finished! Score: %d", mScore);
          return;
       }
 
+      mvprintw(1,0, "Score: %10d", mScore);
       mElapsedTime += dt;
 
       mTxt.update(dt, mElapsedTime);
@@ -384,8 +386,20 @@ private:
          if (fabs(numUnits.x) == 0 && fabs(numUnits.y) == 0) return;
 
          mDt = 0; 
+         float advance = 0;
+         if (mSpawn[mCurrent] > elapsedTime && mState[mCurrent] == WS_HIDDEN) // waiting, start it early
+         {
+             mState[mCurrent] = WS_INIT;
+             advance = mSpawn[mCurrent] - elapsedTime;
+         }         
+
          for (int k = mCurrent; k < mWords.size(); k++)
          {
+            if (k != mCurrent)
+            {
+               mSpawn[k] -= advance;
+            }
+
             if (mState[k] == WS_HIDDEN && elapsedTime > mSpawn[k])
             {
                mState[k] = WS_INIT;
@@ -426,8 +440,16 @@ private:
 
          if (mYcursorOffset >= mWords[mCurrent].size()) //complete
          {
+            if (mState[mCurrent] == WS_INPROGRESS) // success!
+            {
+               int multiplier = 1; 
+               if (mPos[mCurrent].x > LINES*0.75) multiplier = 10;
+               else if (mPos[mCurrent].x > LINES*0.5) multiplier = 5;
+               else if (mPos[mCurrent].x > LINES*0.25) multiplier = 2;
+               mGame->mScore += mDim[mCurrent].y * multiplier;
+               mGame->createExplosion(mPos[mCurrent]+mDim[mCurrent]*0.5, WS_INPROGRESS);
+            }
             mState[mCurrent] = WS_COMPLETE;
-            mGame->createExplosion(mPos[mCurrent]+mDim[mCurrent]*0.5, WS_INPROGRESS);
             eraseWord(mCurrent);
             mYcursorOffset = 0;
             mCurrent++;
@@ -631,6 +653,7 @@ private:
    } mBee;
 
    enum RainbowColors { RB_1 = 3, RB_2, RB_3, RB_4, RB_5, RB_6 };
+   int mScore;
    float mElapsedTime;
    static const int SCREEN_START = 3;
    static const int VAR_TIME_OFFSET = 5;
@@ -662,9 +685,9 @@ int main(int argc, char **argv)
          then = now;
 
          //cout << now << " " << dt << endl;
-         char buff[32];
-         sprintf(buff, "%.2f,%.2f", dt,elapsedTime);
-         mvaddstr(1,0,buff);
+         //char buff[32];
+         //sprintf(buff, "%.2f,%.2f", dt,elapsedTime);
+         //mvaddstr(1,0,buff);
 
 
          game.updateAndDraw(dt, c);
