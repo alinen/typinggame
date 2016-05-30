@@ -172,25 +172,7 @@ public:
       move(0, 0); addstr("Press ESC to exit.\n");
       drawSky(gDimSky, gSky);      
 
-      attron(COLOR_PAIR(3));
-      mvaddstr(LINES-1,0,"----------------"); 
-      attroff(COLOR_PAIR(3));
 
-      attron(COLOR_PAIR(4));
-      mvaddstr(LINES-2,0,"----------------"); 
-      attroff(COLOR_PAIR(4));
- 
-      attron(COLOR_PAIR(5));
-      mvaddstr(LINES-3,0,"----------------"); 
-      attroff(COLOR_PAIR(5)); 
-
-      attron(COLOR_PAIR(6));
-      mvaddstr(LINES-4,0,"----------------"); 
-      attroff(COLOR_PAIR(6)); 
-
-      attron(COLOR_PAIR(7));
-      mvaddstr(LINES-5,0,"----------------"); 
-      attroff(COLOR_PAIR(7));
    }
 
    bool loadFile(const string& filename)
@@ -659,7 +641,10 @@ private:
             {
                int y = mPos.y+j;
                if (y < 0 || y > COLS) continue;
-               if (erase) mvaddch(x, y, ' ');
+               if (erase)
+               {
+                  mvaddch(x, y, ' ');
+               }
                else
                {
                   mvaddch(x, y, gBeeSprite[i][j]);
@@ -667,6 +652,14 @@ private:
             }
          }
          attroff(COLOR_PAIR(mColor));
+
+         /*
+         if (!erase)
+         {
+             int c = 3 + i%5;
+             attron(COLOR_PAIR(c));
+             attroff(COLOR_PAIR(c));
+         }*/
       }
       
       void updateAndDraw(float _dt)
