@@ -241,7 +241,6 @@ public:
       mExplosions.updateAndDraw(dt);
       mTxt.draw();
 
-      /*
       if (mBee.finished() && mBee.inMotion())
       {
          mBee.stop();
@@ -250,8 +249,15 @@ public:
 
       if (mElapsedTime > mBeeSpawn && !mBee.inMotion())
       {
-         mBee.start();
-      }*/
+         if (mTxt.top() > mBee.trajectoryHeight())
+         {
+            mBee.start();
+         }
+         else
+         {
+            mBeeSpawn = mElapsedTime + MIN_TIME_OFFSET + rand() % VAR_TIME_OFFSET; //extension
+         }
+      }
 
       wrefresh(stdscr);
    }
@@ -306,6 +312,12 @@ private:
             y += word.size()+num_spaces;
             token = findword(NULL, ' ', num_spaces);
          }
+      }
+
+      int top() // height of the topmost word
+      {
+         if (finished()) return LINES-1;
+         return mPos[mCurrent].x;
       }
 
       bool finished()
