@@ -104,7 +104,7 @@ const char* gBeeSprite[] = {
 "  (__/  "};
 
 const Vec2 gDimSky(11,52);
-const char* gSky[] = {
+const char* gSkySprite[] = {
 "           __----_                                  ",
 "          (`......)                    _            ",
 "         (. _^ ^_ .)                :(`..)`         ",
@@ -170,7 +170,7 @@ public:
       mBeeSpawn = 0;
       mExplosions.init();
       move(0, 0); addstr("Press ESC to exit.\n");
-      drawSky(gDimSky, gSky);      
+      drawSky(gDimSky, gSkySprite);      
 
 
    }
@@ -233,7 +233,7 @@ public:
       mvprintw(1,0, "Score: %10d", mScore);
       mElapsedTime += dt;
 
-      drawSky(gDimSky, gSky);  
+      drawSky(gDimSky, gSkySprite);  
       mTxt.update(dt, mElapsedTime);
       mTxt.processUserInput(c);
 
@@ -371,14 +371,16 @@ private:
 
       bool intersection(int word_id)
       {
-         /*
-            int x = mPos[word_id].x;
+         for (int i = 0; i < mWords[word_id].size(); i++)
+         {
+            int x = mPos[word_id].x - TypingGame::SCREEN_START;
             int y = mPos[word_id].y+i;
-            if (x >= game.sky.top() && x <= game.sky.bottom())
+            int y_tile = y % gDimSky.y;
+            if (x >= 0 && x < gDimSky.x && gSkySprite[x][y_tile] != ' ')
             {
                return true;
             }
-         */
+         }
          return false;
       }
          
@@ -629,7 +631,8 @@ private:
 
       bool finished()
       {
-         return ((mPos.x < -gDimBeeSprite.x || mPos.x > LINES-1) || (mPos.y < -gDimBeeSprite.y || mPos.y > COLS-1));
+         return ((mPos.x < -gDimBeeSprite.x || mPos.x > LINES-1) || 
+                 (mPos.y < -gDimBeeSprite.y || mPos.y > COLS-1));
       }
 
       void draw(bool erase)
