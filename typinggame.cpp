@@ -233,6 +233,7 @@ public:
       mvprintw(1,0, "Score: %10d", mScore);
       mElapsedTime += dt;
 
+      drawSky(gDimSky, gSky);  
       mTxt.update(dt, mElapsedTime);
       mTxt.processUserInput(c);
 
@@ -240,6 +241,7 @@ public:
       mExplosions.updateAndDraw(dt);
       mTxt.draw();
 
+      /*
       if (mBee.finished() && mBee.inMotion())
       {
          mBee.stop();
@@ -249,7 +251,7 @@ public:
       if (mElapsedTime > mBeeSpawn && !mBee.inMotion())
       {
          mBee.start();
-      }
+      }*/
 
       wrefresh(stdscr);
    }
