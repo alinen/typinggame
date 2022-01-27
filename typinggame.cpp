@@ -10,7 +10,9 @@
 #include <iostream>
 #include <fstream>
 #include <curses.h>
+#ifdef CYGWIN
 #include <windows.h>
+#endif
 #include <time.h>
 #include <assert.h>
 
@@ -30,14 +32,14 @@ public:
    Vec2() {}
    Vec2(int i, int j) { n[0] = i; n[1] = j; }
    Vec2(const Vec2& v) : x(v.x), y(v.y) {}
-   Vec2& operator=(const Vec2& v) { if (&v == this) return *this; x = v.x; y = v.y; }
+   Vec2& operator=(const Vec2& v) { if (&v != this) { x = v.x; y = v.y; } return *this; }
    int operator[] (int i) const { return n[i]; }
    int operator[] (int i) { return n[i]; }
    friend Vec2 operator* (const Vec2& v, float a) { return Vec2((int) v.x*a, (int) v.y*a); }
    friend Vec2 operator* (float a, const Vec2& v) { return Vec2((int) v.x*a, (int) v.y*a); }
    friend Vec2 operator+ (const Vec2& a, const Vec2& b) { return Vec2(a.x+b.x, a.y+b.y); }
    friend Vec2 operator- (const Vec2& a, const Vec2& b) { return Vec2(a.x-b.x, a.y-b.y); }
-   friend ostream& operator<< (ostream& os, const Vec2& v) { os << "(" << v.x << ", " << v.y << ")"; }
+   friend ostream& operator<< (ostream& os, const Vec2& v) { os << "(" << v.x << ", " << v.y << ")"; return os; }
 };
 
 // findword is like strtok but returns the number of characters between tokens
@@ -269,9 +271,9 @@ private:
    int mScore;
    float mElapsedTime;
    float mBeeSpawn;
-   static const int SCREEN_START = 3;
-   static const int VAR_TIME_OFFSET = 5;
-   static const float MIN_TIME_OFFSET = 2.0;   
+   static constexpr int SCREEN_START = 3;
+   static constexpr int VAR_TIME_OFFSET = 5;
+   static constexpr float MIN_TIME_OFFSET = 2.0f;   
 
    //----------------------------------------------
    // Scrolling text logic
@@ -605,7 +607,7 @@ private:
       deque<int> mColor;
       float mElapsedTime;
       vector<const char**> mExplosionAnimation;
-      static const float RATE = 0.1;
+      static constexpr float RATE = 0.1;
    } mExplosions;
 
    //----------------------------------------------
@@ -741,9 +743,13 @@ int main(int argc, char **argv)
          //sprintf(buff, "%.2f,%.2f", dt,elapsedTime);
          //mvaddstr(1,0,buff);
 
-
          game.updateAndDraw(dt, c);
+#ifdef CYGWIN
          Sleep(100);
+#else
+         timespec ts{0, 300};
+         nanosleep(&ts, 0);
+#endif
       }
    }
    catch (exception& e)

@@ -3,4 +3,4 @@
 	g++ -g -c $< 
 
 game: typinggame.o
-	g++ -g $^ -o $@ -lncurses
+	g++ -std=c++11 -g $^ -o $@ -lncurses
